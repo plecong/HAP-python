@@ -1,10 +1,11 @@
 """Tests for pyhap.accessory."""
 import asyncio
 from io import StringIO
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
+from pyhap import accessory
 from pyhap.accessory import Accessory, Bridge
 from pyhap.accessory_driver import AccessoryDriver
 from pyhap.const import (
@@ -146,21 +147,15 @@ def test_bridge_n_add_accessory_dup_aid(mock_driver):
 
 
 @patch("sys.stdout", new_callable=StringIO)
-@patch("sys.meta_path")
-def test_setup_message_without_qr_code(mock_meta_path, mock_stdout, mock_driver):
+def test_setup_message_without_qr_code(mock_stdout, mock_driver):
     """Verify we print out the setup code."""
-    mock_importer = MagicMock()
-    mock_importer.find_spec.side_effect = ImportError
-    mock_meta_path.append(mock_importer)
-
     acc = Accessory(mock_driver, "Test Accessory", aid=STANDALONE_AID)
     mock_driver.state = State(
         address="1.2.3.4", mac="AA::BB::CC::DD::EE", pincode=b"653-32-1211", port=44
     )
-
-    acc.setup_message()
+    with patch.object(accessory, "SUPPORT_QR_CODE", False):
+        acc.setup_message()
     assert "653-32-1211" in mock_stdout.getvalue()
-    assert "pip install HAP-python[QRCode]" in mock_stdout.getvalue()
 
 
 @patch("sys.stdout", new_callable=StringIO)
@@ -170,7 +165,8 @@ def test_setup_message_with_qr_code(mock_stdout, mock_driver):
     mock_driver.state = State(
         address="1.2.3.4", mac="AA::BB::CC::DD::EE", pincode=b"653-32-1211", port=44
     )
-    acc.setup_message()
+    with patch.object(accessory, "SUPPORT_QR_CODE", True):
+        acc.setup_message()
     assert "653-32-1211" in mock_stdout.getvalue()
     assert "\x1b[7m" in mock_stdout.getvalue()
 
