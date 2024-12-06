@@ -50,6 +50,7 @@ from pyhap.const import (
     STANDALONE_AID,
 )
 from pyhap.encoder import AccessoryEncoder
+from pyhap.hap_connection import HAPConnection
 from pyhap.hap_server import HAPServer
 from pyhap.hsrp import Server as SrpServer
 from pyhap.loader import Loader
@@ -72,14 +73,18 @@ DASH_REGEX = re.compile(r"[-]+")
 KEYS_TO_EXCLUDE = {HAP_REPR_IID, HAP_REPR_AID}
 
 
-def _wrap_char_setter(char, value, client_addr):
+def _wrap_char_setter(
+    char: Characteristic,
+    value: Any,
+    connection: HAPConnection,
+):
     """Process an characteristic setter callback trapping and logging all exceptions."""
     try:
-        response = char.client_update_value(value, client_addr)
+        response = char.client_update_value(value, connection)
     except Exception:  # pylint: disable=broad-except
         logger.exception(
             "%s: Error while setting characteristic %s to %s",
-            client_addr,
+            connection.client_addr,
             char.display_name,
             value,
         )
@@ -852,7 +857,11 @@ class AccessoryDriver:
         logger.debug("Get chars response: %s", chars)
         return {HAP_REPR_CHARS: chars}
 
-    def set_characteristics(self, chars_query, client_addr):
+    def set_characteristics(
+        self,
+        chars_query: Any,
+        connection: HAPConnection,
+    ):
         """Called from ``HAPServerHandler`` when iOS configures the characteristics.
 
         :param chars_query: A configuration query. For example:
@@ -872,7 +881,7 @@ class AccessoryDriver:
         :type chars_query: dict
         """
         # TODO: Add support for chars that do no support notifications.
-
+        client_addr = connection.client_addr
         queries: List[Dict[str, Any]] = chars_query[HAP_REPR_CHARS]
 
         self._notify(queries, client_addr)
@@ -914,7 +923,7 @@ class AccessoryDriver:
 
             if value is not None:
                 set_result, set_result_value = _wrap_char_setter(
-                    char, value, client_addr
+                    char, value, connection
                 )
 
             if set_result_value is not None and write_response_requested:

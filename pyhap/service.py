@@ -1,5 +1,5 @@
 """This module implements the HAP Service."""
-
+from inspect import signature
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 from uuid import UUID
 
@@ -10,7 +10,7 @@ from pyhap.const import (
     HAP_REPR_PRIMARY,
     HAP_REPR_TYPE,
 )
-
+from pyhap.hap_connection import HAPConnection
 from .characteristic import Characteristic
 from .util import hap_type_to_uuid, uuid_to_hap_type
 
@@ -18,6 +18,16 @@ if TYPE_CHECKING:
     from .accessory import Accessory
     from .loader import Loader
 
+def _wrap_setter_callback(func: Callable[[Any], Any]):
+    """Optionally, wrap a setter callback to include the connection for backwards compatibility"""
+
+    def wrapper(value: Any, connection: HAPConnection):
+        func(value)
+    
+    if len(signature(func).parameters) == 1:
+        return wrapper
+    else:
+        return func
 
 class Service:
     """A representation of a HAP service.
@@ -111,7 +121,7 @@ class Service:
         if value:
             char.set_value(value, should_notify=False)
         if setter_callback:
-            char.setter_callback = setter_callback
+            char.setter_callback = _wrap_setter_callback(setter_callback)
         if getter_callback:
             char.getter_callback = getter_callback
         return char
@@ -152,6 +162,6 @@ class Service:
         """
         type_id = hap_type_to_uuid(json_dict.pop("UUID"))
         service = cls(type_id, name)
-        for char_name in json_dict["RequiredCharacteristics"]:
+        for char_name in json_dict["RequiredCharacteristics"] + json_dict.get("OptionalCharacteristics", []):
             service.add_characteristic(loader.get_char(char_name))
         return service

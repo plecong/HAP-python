@@ -4,8 +4,9 @@ The HAPServerHandler manages the state of the connection and handles incoming re
 """
 import asyncio
 from http import HTTPStatus
+import inspect
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from urllib.parse import ParseResult, parse_qs, urlparse
 import uuid
 
@@ -22,8 +23,10 @@ from pyhap.const import (
     HAP_PERMISSIONS,
     HAP_REPR_CHARS,
     HAP_REPR_STATUS,
+    HAP_REPR_VALUE,
     HAP_SERVER_STATUS,
 )
+from pyhap.hap_connection import HAPConnection
 from pyhap.util import long_to_bytes
 
 from .hap_crypto import hap_hkdf, pad_tls_nonce
@@ -617,6 +620,9 @@ class HAPServerHandler:
         self.response.shared_key = self.enc_context["shared_key"]
         self.is_encrypted = True
         self.client_uuid = client_uuid
+
+        # need to keep the shared key in the connection for setup of HDS
+        self.shared_key = self.enc_context["shared_key"]
         del self.enc_context
 
     def handle_accessories(self) -> None:
@@ -671,7 +677,10 @@ class HAPServerHandler:
         )
 
         response = self.accessory_handler.set_characteristics(
-            requested_chars, self.client_address
+            requested_chars,
+            connection=HAPConnection(
+                self.shared_key, self.client_address, self.client_uuid
+            ),
         )
         if response is None:
             self.send_response(HTTPStatus.NO_CONTENT)
@@ -679,7 +688,26 @@ class HAPServerHandler:
 
         self.send_response(HTTPStatus.MULTI_STATUS)
         self.send_header("Content-Type", self.JSON_RESPONSE_TYPE)
-        self.end_response(to_hap_json(response))
+
+        # check if any of characteristic values are coroutines
+        if any(inspect.iscoroutine(x[HAP_REPR_VALUE]) for x in response[HAP_REPR_CHARS]):
+            self.response.task = asyncio.create_task(self._handle_set_characteristics_ready(response))
+        else:
+            self.end_response(to_hap_json(response))
+
+    async def _handle_set_characteristics_ready(self, response: Dict[str,List]) -> None:
+        """Wait for all coroutines to finish."""
+        for result in response[HAP_REPR_CHARS]:
+            value = result[HAP_REPR_VALUE]
+            if inspect.iscoroutine(value):
+                try: 
+                    result[HAP_REPR_VALUE] = await value
+                except Exception as e:
+                    logger.error("Error setting characteristic: %s", e)
+                    result[HAP_REPR_STATUS] = HAP_SERVER_STATUS.SERVICE_COMMUNICATION_FAILURE
+                    result[HAP_REPR_VALUE] = None
+
+        return to_hap_json(response)
 
     def handle_prepare(self):
         """Handles a client request to prepare to write."""

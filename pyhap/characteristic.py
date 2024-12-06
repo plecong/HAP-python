@@ -19,6 +19,7 @@ from .const import (
     HAP_REPR_VALID_VALUES,
     HAP_REPR_VALUE,
 )
+from .hap_connection import HAPConnection
 from .util import hap_type_to_uuid, uuid_to_hap_type
 
 if TYPE_CHECKING:
@@ -179,7 +180,7 @@ class Characteristic:
         self.type_id = type_id
         self._value = self._get_default_value()
         self.getter_callback: Optional[Callable[[], Any]] = None
-        self.setter_callback: Optional[Callable[[Any], None]] = None
+        self.setter_callback: Optional[Callable[[Any, Any], None]] = None
         self.service: Optional["Service"] = None
         self.unique_id = unique_id
         self._uuid_str = uuid_to_hap_type(type_id)
@@ -359,12 +360,15 @@ class Characteristic:
             self.value = None
 
     def client_update_value(
-        self, value: Any, sender_client_addr: Optional[Tuple[str, int]] = None
+        self, 
+        value: Any, 
+        connection: HAPConnection = None
     ) -> None:
         """Called from broker for value change in Home app.
 
         Change self.value to value and call callback.
         """
+        sender_client_addr = connection.client_address if connection else None
         original_value = value
         if not self._always_null or original_value is not None:
             value = self.to_valid_value(value)
@@ -382,7 +386,7 @@ class Characteristic:
         response = None
         if self.setter_callback:
             # pylint: disable=not-callable
-            response = self.setter_callback(value)
+            response = self.setter_callback(value, connection)
         changed = self._value != previous_value
         if changed:
             self.notify(sender_client_addr)
