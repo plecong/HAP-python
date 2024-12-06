@@ -363,7 +363,7 @@ class Characteristic:
     def client_update_value(
         self, 
         value: Any, 
-        sender_client_addr: Tuple[str, int] | str,
+        sender_client_addr: Tuple[str, int] | str | None = None,
         connection: Optional[HAPConnection] = None
     ) -> None:
         """Called from broker for value change in Home app.
