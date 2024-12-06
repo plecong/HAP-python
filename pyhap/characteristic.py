@@ -4,6 +4,7 @@ All things for a HAP characteristic.
 A Characteristic is the smallest unit of the smart home, e.g.
 a temperature measuring or a device status.
 """
+import inspect
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 from uuid import UUID
@@ -131,7 +132,7 @@ class Characteristic:
         "type_id",
         "_value",
         "getter_callback",
-        "setter_callback",
+        "_setter_callback",
         "service",
         "_uuid_str",
         "_loader_display_name",
@@ -180,7 +181,7 @@ class Characteristic:
         self.type_id = type_id
         self._value = self._get_default_value()
         self.getter_callback: Optional[Callable[[], Any]] = None
-        self.setter_callback: Optional[Callable[[Any, Any], None]] = None
+        self._setter_callback: Optional[Callable[[Any, Any], None]] = None
         self.service: Optional["Service"] = None
         self.unique_id = unique_id
         self._uuid_str = uuid_to_hap_type(type_id)
@@ -362,13 +363,13 @@ class Characteristic:
     def client_update_value(
         self, 
         value: Any, 
-        connection: HAPConnection = None
+        sender_client_addr: Tuple[str, int] | str,
+        connection: Optional[HAPConnection] = None
     ) -> None:
         """Called from broker for value change in Home app.
 
         Change self.value to value and call callback.
         """
-        sender_client_addr = connection.client_address if connection else None
         original_value = value
         if not self._always_null or original_value is not None:
             value = self.to_valid_value(value)
@@ -476,3 +477,24 @@ class Characteristic:
                 char.display_name
             )
         return char
+
+    @property
+    def setter_callback(self) -> Optional[Callable[[Any, Any], None]]:
+        """Return the setter callback."""
+        return self._setter_callback
+    
+    @setter_callback.setter
+    def setter_callback(self, callback: Optional[Callable[[Any, Any], None]]) -> None:
+        """Set the setter callback."""
+        def wrapper(value: Any, connection: HAPConnection):
+            return callback(value)
+    
+        if callable(callback) and len(inspect.signature(callback).parameters) == 1:
+            self._setter_callback = wrapper
+        else:
+            self._setter_callback = callback
+
+    @setter_callback.deleter
+    def setter_callback(self) -> None:
+        """Delete the setter callback."""
+        self._setter_callback = None

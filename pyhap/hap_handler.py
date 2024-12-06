@@ -153,6 +153,7 @@ class HAPServerHandler:
         self.accessory_handler: AccessoryDriver = accessory_handler
         self.state: State = self.accessory_handler.state
         self.enc_context: Optional[Dict[str, Any]] = None
+        self.shared_key: Optional[bytes] = None
         self.client_address = client_address
         self.is_encrypted = False
         self.client_uuid: Optional[uuid.UUID] = None
@@ -678,6 +679,7 @@ class HAPServerHandler:
 
         response = self.accessory_handler.set_characteristics(
             requested_chars,
+            self.client_address,
             connection=HAPConnection(
                 self.shared_key, self.client_address, self.client_uuid
             ),
@@ -690,7 +692,11 @@ class HAPServerHandler:
         self.send_header("Content-Type", self.JSON_RESPONSE_TYPE)
 
         # check if any of characteristic values are coroutines
-        if any(inspect.iscoroutine(x[HAP_REPR_VALUE]) for x in response[HAP_REPR_CHARS]):
+        if any(
+            inspect.iscoroutine(x[HAP_REPR_VALUE])
+            for x in response[HAP_REPR_CHARS]
+            if HAP_REPR_VALUE in x
+        ):
             self.response.task = asyncio.create_task(self._handle_set_characteristics_ready(response))
         else:
             self.end_response(to_hap_json(response))
