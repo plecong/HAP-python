@@ -881,7 +881,7 @@ class AccessoryDriver:
         :type chars_query: dict
         """
         # TODO: Add support for chars that do no support notifications.
-        client_addr = connection.client_addr
+        client_addr = connection.client_address
         queries: List[Dict[str, Any]] = chars_query[HAP_REPR_CHARS]
 
         self._notify(queries, client_addr)
