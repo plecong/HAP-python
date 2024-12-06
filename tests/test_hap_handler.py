@@ -910,6 +910,64 @@ def test_handle_set_handle_set_characteristics_encrypted_with_exception(
     assert response.status_code == 207
     assert b"-70402" in response.body
 
+@pytest.mark.asyncio
+async def test_handle_set_handle_set_characteristics_with_coro(driver: AccessoryDriver):
+    """Verify an unencrypted set_characteristics with a coroutine."""
+    acc = Accessory(driver, "TestAcc", aid=1)
+    assert acc.aid == 1
+
+    async def _mock_coro(*_):
+        return 42
+
+    service = acc.add_preload_service("DataStreamTransportManagement")
+    char = service.configure_char("SetupDataStreamTransport", setter_callback=_mock_coro)
+    char_iid = char.to_HAP()["iid"]
+
+    driver.add_accessory(acc)
+
+    handler = hap_handler.HAPServerHandler(driver, "peername")
+    handler.is_encrypted = True
+
+    response = hap_handler.HAPResponse()
+    handler.response = response    
+    handler.request_body = b'{"characteristics":[{"aid":1,"iid":' + str(char_iid).encode() + b',"value":1,"r":true}]}'
+    handler.handle_set_characteristics()
+
+    assert response.status_code == 207
+    assert response.task is not None
+    
+    response_body = await response.task
+    assert response_body == b'{"characteristics":[{"status":0,"value":42,"aid":1,"iid":11}]}'
+
+@pytest.mark.asyncio
+async def test_handle_set_handle_set_characteristics_with_coro_exception(driver: AccessoryDriver):
+    """Verify an unencrypted set_characteristics with a coroutine."""
+    acc = Accessory(driver, "TestAcc", aid=1)
+    assert acc.aid == 1
+
+    async def _mock_coro(*_):
+        raise ValueError()
+
+    service = acc.add_preload_service("DataStreamTransportManagement")
+    char = service.configure_char("SetupDataStreamTransport", setter_callback=_mock_coro)
+    char_iid = char.to_HAP()["iid"]
+
+    driver.add_accessory(acc)
+
+    handler = hap_handler.HAPServerHandler(driver, "peername")
+    handler.is_encrypted = True
+
+    response = hap_handler.HAPResponse()
+    handler.response = response    
+    handler.request_body = b'{"characteristics":[{"aid":1,"iid":' + str(char_iid).encode() + b',"value":1,"r":true}]}'
+    handler.handle_set_characteristics()
+
+    assert response.status_code == 207
+    assert response.task is not None
+    
+    response_body = await response.task
+    assert response_body == b'{"characteristics":[{"status":-70402,"value":null,"aid":1,"iid":11}]}'
+
 
 def test_handle_snapshot_encrypted_non_existant_accessory(driver: AccessoryDriver):
     """Verify an encrypted snapshot with non-existant accessory."""
