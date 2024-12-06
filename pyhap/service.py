@@ -1,4 +1,5 @@
 """This module implements the HAP Service."""
+
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 from uuid import UUID
 
@@ -9,12 +10,14 @@ from pyhap.const import (
     HAP_REPR_PRIMARY,
     HAP_REPR_TYPE,
 )
+
 from .characteristic import Characteristic
 from .util import hap_type_to_uuid, uuid_to_hap_type
 
 if TYPE_CHECKING:
     from .accessory import Accessory
     from .loader import Loader
+
 
 class Service:
     """A representation of a HAP service.

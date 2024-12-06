@@ -1,5 +1,4 @@
 """Module for the Accessory classes."""
-
 import itertools
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional
