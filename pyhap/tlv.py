@@ -1,5 +1,7 @@
 """Encodes and decodes Tag-Length-Value (tlv8) data."""
+
 import struct
+
 from typing import Any, Dict
 
 from pyhap import util
@@ -27,16 +29,28 @@ def encode(*args, to_base64=False):
         tag = args[x]
         data = args[x + 1]
         total_length = len(data)
-        if len(data) <= 255:
-            encoded = tag + struct.pack("B", total_length) + data
+        
+        # handle lists of data separated by empty TLV type
+        if type(data) is list:
+            if len(data) == 0:
+                pieces.append(tag + struct.pack("B", 0))
+            else:
+                for i, entry in enumerate(data):
+                    pieces.append(b"\x00\x00" if i > 0 else b"")
+                    pieces.append(tag + struct.pack("B", len(entry)) + entry)
         else:
-            encoded = b""
-            for y in range(0, total_length // 255):
-                encoded = encoded + tag + b"\xFF" + data[y * 255 : (y + 1) * 255]
-            remaining = total_length % 255
-            encoded = encoded + tag + struct.pack("B", remaining) + data[-remaining:]
+            if len(data) <= 255:
+                encoded = tag + struct.pack("B", total_length) + data
+            else:
+                encoded = b""
+                for y in range(0, total_length // 255):
+                    encoded = encoded + tag + b"\xff" + data[y * 255 : (y + 1) * 255]
+                remaining = total_length % 255
+                encoded = (
+                    encoded + tag + struct.pack("B", remaining) + data[-remaining:]
+                )
 
-        pieces.append(encoded)
+            pieces.append(encoded)
 
     result = b"".join(pieces)
 
