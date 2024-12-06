@@ -441,7 +441,7 @@ class Camera(Accessory):
 
     def _create_stream_management(self, stream_idx, options):
         """Create a stream management service."""
-        management = self.add_preload_service("CameraRTPStreamManagement", unique_id=stream_idx)
+        management = self.add_preload_service("CameraRTPStreamManagement", chars=["Active"], unique_id=stream_idx)
         management.configure_char(
             "StreamingStatus",
             getter_callback=lambda: self._get_streaming_status(stream_idx),
@@ -468,6 +468,7 @@ class Camera(Accessory):
                 value, stream_idx=stream_idx
             ),
         )
+        management.configure_char("Active", value=1)
         return management
 
     async def _start_stream(self, objs, reconfigure):  # pylint: disable=unused-argument

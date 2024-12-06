@@ -162,6 +162,6 @@ class Service:
         """
         type_id = hap_type_to_uuid(json_dict.pop("UUID"))
         service = cls(type_id, name)
-        for char_name in json_dict["RequiredCharacteristics"] + json_dict.get("OptionalCharacteristics", []):
+        for char_name in json_dict["RequiredCharacteristics"]:
             service.add_characteristic(loader.get_char(char_name))
         return service
